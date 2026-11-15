@@ -85,6 +85,12 @@ function formatState(state) {
   return map[raw] || `${ANSI.dim}${raw}${ANSI.reset}`;
 }
 
+function hasEffortInModelName(displayModel, effort) {
+  if (!displayModel || !effort) return false;
+  const escaped = effort.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(?:^|[\\s(\\[,·/-])${escaped}(?:$|[\\s)\\],])`, 'i').test(displayModel);
+}
+
 export function renderStatusline(payload = {}, opts = {}) {
   const data = payload && typeof payload === 'object' ? payload : {};
   const ctx = data.context_window && typeof data.context_window === 'object' ? data.context_window : {};
@@ -93,7 +99,7 @@ export function renderStatusline(payload = {}, opts = {}) {
   const detail = typeof opts.detail === 'boolean' ? opts.detail : DETAIL_ENV;
 
   const modelName = modelObj.display_name || modelObj.id || '';
-  const effort = modelObj.effort ? String(modelObj.effort) : '';
+  const effort = modelObj.effort ? String(modelObj.effort).trim() : '';
   const noCost =
     typeof opts.showCost === 'boolean' ? !opts.showCost : process.env.AGY_CTX_NO_COST === '1';
 
@@ -201,7 +207,8 @@ export function renderStatusline(payload = {}, opts = {}) {
       phaseTag = ` [${transcriptData.modelBreakdown.activeTag}]`;
     }
   }
-  const modelPart = `${ANSI.cyan}${ANSI.bold}◆ ${displayModel}${phaseTag}${effort ? `·${effort}` : ''}${ANSI.reset}`;
+  const effortSuffix = effort && !hasEffortInModelName(displayModel, effort) ? `·${effort}` : '';
+  const modelPart = `${ANSI.cyan}${ANSI.bold}◆ ${displayModel}${phaseTag}${effortSuffix}${ANSI.reset}`;
 
   const bar = makeBar(usedPct, COMPACT ? 6 : 10);
   const pctColor = colorForPct(usedPct);

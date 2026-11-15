@@ -283,6 +283,16 @@ test('bin/statusline.mjs: renders JSON payloads, >200k & critical warnings, and 
     const r4 = runStatus('{broken json');
     assert.equal(r4.status, 0);
     assert.match(r4.stdout, /Antigravity/);
+
+    // 5. Avoid duplicating effort suffix when display_name already contains it
+    const r5 = runStatus({
+      cwd: '/workspace/my-repo',
+      agent_state: 'idle',
+      model: { id: 'gemini-4-hydrogen', display_name: 'Gemini 4 Hydrogen (Medium)', effort: 'medium' },
+      context_window: { context_window_size: 1_048_576, used_percentage: 4 },
+    });
+    assert.equal(r5.status, 0);
+    assert.match(r5.stdout, /◆ Gemini 4 Hydrogen \(Medium\)(?!·medium)/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
