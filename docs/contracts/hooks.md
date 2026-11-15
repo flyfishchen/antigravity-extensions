@@ -60,6 +60,7 @@
     }
     ```
     设置 `metadata.user_markdown` 且保持 `systemMessage: ""` 可直接向用户内联渲染 Markdown 而不消耗任何大模型 Token；在 `PreInvocation` 中配合 `"terminationBehavior": "terminate"` 可实现零 Token 快捷指令拦截（如 `:ctx`）。
+    > **CLI 兼容说明**：部分 `agy` CLI 版本在反序列化 `systemMessage.metadata` 字符串时会触发 `hookcaller` panic 并跳过终止控制；针对 CLI 表面（`antigravity-cli`）的 `PreInvocation` 阻断输出可回退为 `{"errorMessage": {"userMessage": "..."}}` 配合 `"terminationBehavior": "terminate"`。
   - **快捷指令展开执行模式**：在 `PreInvocation` 中设置非空 `systemMessage.systemMessage`（向模型注入展开后的完整提示词）配合 `metadata.user_markdown`（向用户内联回显已采纳指令），且**省略** `terminationBehavior`（或设为空串 `""`），可在拦截如 `:s` 等短指令后继续进入本轮模型推理。
   - **错误阻断模式**：注入 `{"errorMessage": {"userMessage": "..."}}` 并配合 `"terminationBehavior": "terminate"`。
 - **`Stop`**：

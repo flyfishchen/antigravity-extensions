@@ -672,6 +672,20 @@ export function evaluatePanelIntercept(payload = {}, opts = {}) {
     }
   }
 
+  if (isCliSurface) {
+    // Current agy CLI hookcaller panics on systemMessage.metadata string values; use errorMessage.userMessage for reliable zero-token CLI output.
+    return {
+      injectSteps: [
+        {
+          errorMessage: {
+            userMessage: markdown,
+          },
+        },
+      ],
+      terminationBehavior: 'terminate',
+    };
+  }
+
   return {
     injectSteps: [
       {

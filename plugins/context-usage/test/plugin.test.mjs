@@ -821,8 +821,7 @@ test('hooks/intercept-panel.mjs: intercepts bare panel commands with zero tokens
       { dirs: [cliAppData, appAppData] }
     );
     assert.equal(resSlashCli.terminationBehavior, 'terminate');
-    assert.equal(resSlashCli.injectSteps[0].systemMessage.systemMessage, '');
-    const mdCli = resSlashCli.injectSteps[0].systemMessage.metadata.user_markdown;
+    const mdCli = resSlashCli.injectSteps[0].errorMessage.userMessage;
     assert.match(mdCli, /Category/);
     assert.match(mdCli, /Orchestrator Dual-Model Breakdown/);
     assert.doesNotMatch(mdCli, /sidecar:\/\//);
@@ -856,7 +855,7 @@ test('hooks/intercept-panel.mjs: intercepts bare panel commands with zero tokens
     assert.equal(hookRun.status, 0, hookRun.stderr);
     const parsedHookOut = JSON.parse(hookRun.stdout);
     assert.equal(parsedHookOut.terminationBehavior, 'terminate');
-    assert.match(parsedHookOut.injectSteps[0].systemMessage.metadata.user_markdown, /会话上下文总览/);
+    assert.match(parsedHookOut.injectSteps[0].errorMessage.userMessage, /会话上下文总览/);
 
     // Pass-through guards:
     // 1. Normal user prompt
@@ -918,7 +917,7 @@ test('hooks/intercept-panel.mjs: intercepts bare panel commands with zero tokens
       { dirs: [cliAppData, appAppData] }
     );
     assert.equal(resFreshAfterCtx.terminationBehavior, 'terminate');
-    assert.match(resFreshAfterCtx.injectSteps[0].systemMessage.metadata.user_markdown, /Category/);
+    assert.match(resFreshAfterCtx.injectSteps[0].errorMessage.userMessage, /Category/);
 
     // 5. Brand-new Turn #1 before transcript.jsonl or brain/<convId> exists on disk
     const freshConvId = '77777777-8888-4999-aaaa-bbbbbbbbbbbb';
@@ -934,7 +933,7 @@ test('hooks/intercept-panel.mjs: intercepts bare panel commands with zero tokens
       { dirs: [cliAppData, appAppData] }
     );
     assert.equal(resBrandNewTurn1.terminationBehavior, 'terminate');
-    const mdTurn1 = resBrandNewTurn1.injectSteps[0].systemMessage.metadata.user_markdown;
+    const mdTurn1 = resBrandNewTurn1.injectSteps[0].errorMessage.userMessage;
     assert.match(mdTurn1, /Orchestrator \(Carbon\)/);
     assert.match(mdTurn1, /新会话首轮/);
     assert.doesNotMatch(mdTurn1, /sidecar:\/\//);
@@ -950,7 +949,7 @@ test('hooks/intercept-panel.mjs: intercepts bare panel commands with zero tokens
       { dirs: [cliAppData, appAppData] }
     );
     assert.equal(resUnflushedTurn2.terminationBehavior, 'terminate');
-    const mdUnflushed = resUnflushedTurn2.injectSteps[0].systemMessage.metadata.user_markdown;
+    const mdUnflushed = resUnflushedTurn2.injectSteps[0].errorMessage.userMessage;
     assert.match(mdUnflushed, /20k/);
     assert.match(mdUnflushed, /Orchestrator Dual-Model Breakdown/);
 
@@ -964,7 +963,7 @@ test('hooks/intercept-panel.mjs: intercepts bare panel commands with zero tokens
       { dirs: [cliAppData, appAppData] }
     );
     assert.equal(resMissingConv.terminationBehavior, 'terminate');
-    assert.match(resMissingConv.injectSteps[0].systemMessage.metadata.user_markdown, /未找到会话/);
+    assert.match(resMissingConv.injectSteps[0].errorMessage.userMessage, /未找到会话/);
 
     // 8. invocationNum > 0 (number or numeric string) fast-returns {} mid-turn even on unhandled :ctx step
     writeJsonl(cliTranscript, [
@@ -1071,7 +1070,7 @@ test('hooks/intercept-panel.mjs: intercepts bare panel commands with zero tokens
       { dirs: [cliAppData, appAppData] }
     );
     assert.equal(resSnakeCase.terminationBehavior, 'terminate');
-    assert.match(resSnakeCase.injectSteps[0].systemMessage.metadata.user_markdown, /Category/);
+    assert.match(resSnakeCase.injectSteps[0].errorMessage.userMessage, /Category/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -1524,7 +1523,7 @@ test('cli & hooks & sidecar: cost reporting, --sort cost, :ctx all cost, and UI/
       { conversationId: priceyId, transcriptPath: priceyPath, lastUserInput: ':ctx' },
       { dirs: [cliAppData] }
     );
-    const mdSingle = hookSingle.injectSteps[0].systemMessage.metadata.user_markdown;
+    const mdSingle = hookSingle.injectSteps[0].errorMessage.userMessage;
     assert.match(mdSingle, /预估成本/);
     assert.match(mdSingle, /缓存已省/);
     assert.doesNotMatch(mdSingle, /sidecar:\/\//);
@@ -1539,13 +1538,13 @@ test('cli & hooks & sidecar: cost reporting, --sort cost, :ctx all cost, and UI/
       },
       { dirs: [cliAppData] }
     );
-    assert.match(turn1Hook.injectSteps[0].systemMessage.metadata.user_markdown, /\$0\.00/);
+    assert.match(turn1Hook.injectSteps[0].errorMessage.userMessage, /\$0\.00/);
 
     const hookAllCost = evaluatePanelIntercept(
       { conversationId: cheapId, transcriptPath: cheapPath, lastUserInput: ':ctx all cost' },
       { dirs: [cliAppData] }
     );
-    const mdAllCost = hookAllCost.injectSteps[0].systemMessage.metadata.user_markdown;
+    const mdAllCost = hookAllCost.injectSteps[0].errorMessage.userMessage;
     assert.match(mdAllCost, /累计成本/);
     assert.match(mdAllCost, /\| Cost \|/);
     assert.ok(mdAllCost.indexOf('Expensive Opus task') < mdAllCost.indexOf('Cheap Flash task'));
@@ -2308,7 +2307,7 @@ test('stats: day/week/month/custom range aggregation across CLI, Box Panel, Hook
       { dirs, env, nowMs, disableRemoteRefresh: true }
     );
     assert.equal(cliIntercept.terminationBehavior, 'terminate');
-    const cliMd = cliIntercept.injectSteps[0].systemMessage.metadata.user_markdown;
+    const cliMd = cliIntercept.injectSteps[0].errorMessage.userMessage;
     assert.match(cliMd, /Custom Range/);
     assert.match(cliMd, /\$0\.90/);
     assert.equal(cliMd.includes('sidecar://'), false, 'CLI surface must not emit sidecar:// links');
@@ -2346,7 +2345,7 @@ test('stats: day/week/month/custom range aggregation across CLI, Box Panel, Hook
       { dirs, env, nowMs, disableRemoteRefresh: true }
     );
     assert.equal(bareDateIntercept.terminationBehavior, 'terminate');
-    const bareDateMd = bareDateIntercept.injectSteps[0].systemMessage.metadata.user_markdown;
+    const bareDateMd = bareDateIntercept.injectSteps[0].errorMessage.userMessage;
     assert.match(bareDateMd, /\$0\.45/);
     assert.match(bareDateMd, /\*\*1\*\*\s*个会话/);
     assert.match(bareDateMd, /1 天/);
@@ -2363,7 +2362,7 @@ test('stats: day/week/month/custom range aggregation across CLI, Box Panel, Hook
         { dirs, env, nowMs, disableRemoteRefresh: true }
       );
       assert.equal(rSingle.terminationBehavior, 'terminate');
-      const mdSingle = rSingle.injectSteps[0].systemMessage.metadata.user_markdown;
+      const mdSingle = rSingle.injectSteps[0].errorMessage.userMessage;
       assert.match(mdSingle, /\$0\.45/);
       assert.match(mdSingle, /\*\*1\*\*\s*个会话/);
     }
@@ -2377,7 +2376,7 @@ test('stats: day/week/month/custom range aggregation across CLI, Box Panel, Hook
       { dirs, env, nowMs, disableRemoteRefresh: true }
     );
     assert.equal(dualDateIntercept.terminationBehavior, 'terminate');
-    const dualDateMd = dualDateIntercept.injectSteps[0].systemMessage.metadata.user_markdown;
+    const dualDateMd = dualDateIntercept.injectSteps[0].errorMessage.userMessage;
     assert.match(dualDateMd, /\$0\.90/);
     assert.match(dualDateMd, /\*\*2\*\*\s*个会话/);
 
