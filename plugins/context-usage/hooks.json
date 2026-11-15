@@ -1,0 +1,22 @@
+{
+  "context-usage-inline-panel": {
+    "enabled": true,
+    "PreInvocation": [
+      {
+        "type": "command",
+        "command": "node ./hooks/intercept-panel.mjs",
+        "timeout": 5
+      }
+    ]
+  },
+  "context-usage-threshold-alert": {
+    "enabled": true,
+    "PostInvocation": [
+      {
+        "type": "command",
+        "command": "node ./hooks/check-context.mjs",
+        "timeout": 5
+      }
+    ]
+  }
+}

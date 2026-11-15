@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="frame-src 'none'; child-src 'none'">
+  <title>Prompt Suggestions</title>
+  <script src="/preload.js"></script>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="topbar-row">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">⇢</span>
+          <span class="brand-title">Prompt Suggestions</span>
+          <span id="live-pill" class="live-pill" title="Polling every 1.5s">
+            <span class="live-dot" aria-hidden="true"></span>
+            <span id="live-label">Live</span>
+          </span>
+        </div>
+        <div class="topbar-controls">
+          <button id="btn-toggle-enabled" type="button" class="toggle-btn" aria-pressed="true">
+            <span id="toggle-dot" class="toggle-dot" aria-hidden="true"></span>
+            <span id="toggle-label">Enabled</span>
+          </button>
+        </div>
+      </div>
+
+      <nav class="tabs" role="tablist" aria-label="Prompt Suggestion Views">
+        <button type="button" role="tab" id="tab-btn-session" data-tab="session" class="tab active" aria-selected="true">
+          Suggestions
+        </button>
+        <button type="button" role="tab" id="tab-btn-sessions" data-tab="sessions" class="tab" aria-selected="false">
+          All Sessions <span id="sessions-count" class="tab-badge hidden">0</span>
+        </button>
+      </nav>
+    </header>
+
+    <main class="main">
+      <section id="panel-session" class="panel active" role="tabpanel" aria-labelledby="tab-btn-session">
+        <div id="session-loading" class="card empty-card">
+          <div class="empty-title">Analyzing latest turn…</div>
+          <div class="empty-sub">Reading conversation transcript</div>
+        </div>
+
+        <div id="session-empty" class="card empty-card hidden">
+          <div class="empty-title">No conversation selected</div>
+          <div class="empty-sub">Start a conversation or choose one from All Sessions.</div>
+          <div class="empty-actions">
+            <button id="btn-go-sessions" type="button" class="btn secondary">Browse All Sessions</button>
+          </div>
+        </div>
+
+        <div id="session-content" class="stack hidden">
+          <section class="card meta-card">
+            <div class="meta-top">
+              <h1 id="conv-title" class="conv-title"></h1>
+              <span id="conv-surface" class="badge surface"></span>
+            </div>
+            <div class="meta-sub">
+              <span id="conv-status-badge" class="badge subtle"></span>
+              <span id="conv-id" class="mono-id"></span>
+              <button id="btn-dismiss-restore" type="button" class="btn-link hidden"></button>
+            </div>
+          </section>
+
+          <section id="suggestions-list" class="stack"></section>
+
+          <section id="suggestions-silent" class="card empty-card hidden">
+            <div id="silent-title" class="empty-title">Silent for this turn</div>
+            <div id="silent-sub" class="empty-sub">No high-confidence follow-up prompt predicted (silent rather than wrong).</div>
+          </section>
+
+          <section class="card tips-card">
+            <div class="tips-title">CLI Shortcuts</div>
+            <div class="tips-grid">
+              <code>:s</code><span>Accept #1</span>
+              <code>:s 2</code><span>Accept #2</span>
+              <code>:s + note</code><span>Accept + extra</span>
+              <code>:s clear</code><span>Dismiss turn</span>
+              <code>:s off</code><span>Pause display</span>
+              <code>:s ?</code><span>Inspect inline</span>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section id="panel-sessions" class="panel hidden" role="tabpanel" aria-labelledby="tab-btn-sessions">
+        <div class="sessions-toolbar">
+          <input id="sessions-search" type="search" class="search-input" placeholder="Filter by title, suggestion, or ID…" aria-label="Filter sessions">
+        </div>
+        <div id="sessions-list" class="stack"></div>
+      </section>
+    </main>
+
+    <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+  </div>
+  <script src="/app.js"></script>
+</body>
+</html>

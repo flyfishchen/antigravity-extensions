@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="frame-src 'none'; child-src 'none'">
+  <title>Context Usage</title>
+  <script src="/preload.js"></script>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="topbar-row">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">◆</span>
+          <span class="brand-title">Context Usage</span>
+          <span id="live-pill" class="live-pill" title="Polling every 1.5s">
+            <span class="live-dot" aria-hidden="true"></span>
+            <span id="live-label">Live</span>
+          </span>
+        </div>
+        <div class="topbar-controls">
+          <label class="select-wrap" title="Context window cap">
+            <span class="sr-only">Window capacity</span>
+            <select id="window-select" aria-label="Window capacity">
+              <option value="0">Auto</option>
+              <option value="1048576">1M (1.05M)</option>
+              <option value="200000">200K</option>
+              <option value="128000">128K</option>
+              <option value="2097152">2M (2.1M)</option>
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <nav class="tabs" role="tablist" aria-label="Context Usage Views">
+        <button type="button" role="tab" id="tab-btn-session" data-tab="session" class="tab active" aria-selected="true">
+          Session
+        </button>
+        <button type="button" role="tab" id="tab-btn-sessions" data-tab="sessions" class="tab" aria-selected="false">
+          All Sessions <span id="sessions-count" class="tab-badge hidden">0</span>
+        </button>
+        <button type="button" role="tab" id="tab-btn-stats" data-tab="stats" class="tab" aria-selected="false">
+          Stats
+        </button>
+      </nav>
+    </header>
+
+    <main class="main">
+      <!-- Session Detail Panel -->
+      <section id="panel-session" class="panel active" role="tabpanel" aria-labelledby="tab-btn-session">
+        <div id="session-loading" class="card empty-card">
+          <div class="empty-title">Loading context metrics…</div>
+          <div class="empty-sub">Reading conversation transcript</div>
+        </div>
+
+        <div id="session-empty" class="card empty-card hidden">
+          <div class="empty-title">Waiting for conversation telemetry</div>
+          <div id="session-empty-sub" class="empty-sub">Send a message or select a session from All Sessions.</div>
+          <div class="empty-actions">
+            <button id="btn-go-sessions" type="button" class="btn secondary">Browse All Sessions</button>
+          </div>
+        </div>
+
+        <div id="session-content" class="stack hidden">
+          <!-- Session Metadata Header -->
+          <section class="card meta-card">
+            <div class="meta-top">
+              <h1 id="conv-title" class="conv-title"></h1>
+              <span id="conv-surface" class="badge surface"></span>
+            </div>
+            <div class="meta-sub">
+              <span id="conv-model" class="badge model"></span>
+              <span id="conv-phase-badge" class="badge hidden"></span>
+              <span id="conv-switches-pill" class="badge subtle hidden"></span>
+              <span id="conv-id" class="mono-id"></span>
+              <span id="conv-turns-pill" class="badge subtle"></span>
+              <span id="conv-cost-pill" class="badge cost-pill">$0.00</span>
+              <button id="btn-open-conv" type="button" class="btn-link hidden">Open Chat</button>
+            </div>
+          </section>
+
+          <!-- Hero Radial Gauge -->
+          <section class="card hero-card">
+            <div class="hero-grid">
+              <div class="gauge-wrap">
+                <svg class="gauge-svg" viewBox="0 0 120 120" role="img" aria-label="Context window usage percentage">
+                  <circle class="gauge-track" cx="60" cy="60" r="50" />
+                  <circle id="gauge-arc" class="gauge-arc healthy" cx="60" cy="60" r="50" stroke-dasharray="314.16" stroke-dashoffset="314.16" />
+                </svg>
+                <div class="gauge-center">
+                  <div id="gauge-pct" class="gauge-pct">0%</div>
+                  <div id="gauge-health" class="gauge-health">HEALTHY</div>
+                </div>
+              </div>
+
+              <div class="hero-stats">
+                <div class="hero-numbers">
+                  <span id="active-tokens" class="hero-big">0</span>
+                  <span class="hero-slash">/</span>
+                  <span id="window-tokens" class="hero-cap">1.05M</span>
+                  <span class="hero-unit">tokens</span>
+                </div>
+                <div class="linear-track" aria-hidden="true">
+                  <div id="linear-fill" class="linear-fill healthy" style="width: 0%"></div>
+                </div>
+                <div class="hero-meta-row">
+                  <span id="headroom-text" class="muted">1.05M remaining</span>
+                  <span id="badge-200k" class="badge warn hidden">&gt;200k tokens</span>
+                </div>
+                <div id="compact-wrap" class="compact-wrap hidden">
+                  <button id="btn-compact" type="button" class="btn compact-btn">Send /compact</button>
+                  <span id="compact-status" class="muted small"></span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- 4-Category Breakdown -->
+          <section class="card">
+            <div class="section-head">
+              <h2>Category Breakdown</h2>
+              <span id="breakdown-total" class="muted small"></span>
+            </div>
+            <div id="cat-stacked-bar" class="stacked-bar" aria-label="Category proportions"></div>
+            <div id="cat-rows" class="cat-rows"></div>
+          </section>
+
+          <!-- Cache & Session Telemetry -->
+          <section class="card">
+            <div class="section-head">
+              <h2>Cache &amp; Session Totals</h2>
+              <span id="latest-cache-pill" class="badge subtle"></span>
+            </div>
+            <div class="kpi-grid">
+              <div class="kpi-item">
+                <div class="kpi-label">Cache Hit Rate</div>
+                <div id="kpi-cache-rate" class="kpi-val accent-emerald">0%</div>
+              </div>
+              <div class="kpi-item">
+                <div class="kpi-label">Cached Read</div>
+                <div id="kpi-cache-read" class="kpi-val">0</div>
+              </div>
+              <div class="kpi-item">
+                <div class="kpi-label">Fresh Input</div>
+                <div id="kpi-fresh-in" class="kpi-val">0</div>
+              </div>
+              <div class="kpi-item">
+                <div class="kpi-label">Total Output</div>
+                <div id="kpi-total-out" class="kpi-val">0</div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Cost & Cache Savings -->
+          <section class="card">
+            <div class="section-head">
+              <h2>Cost &amp; Cache Savings</h2>
+              <span id="cost-avg-pill" class="badge subtle"></span>
+            </div>
+            <div id="cost-stacked-bar" class="stacked-bar" aria-label="Cost breakdown proportions"></div>
+            <div class="kpi-grid">
+              <div class="kpi-item">
+                <div class="kpi-label">Est. Session Cost</div>
+                <div id="kpi-total-cost" class="kpi-val accent-cost">$0.00</div>
+                <div id="kpi-subagent-cost-note" class="kpi-note hidden"></div>
+              </div>
+              <div class="kpi-item">
+                <div class="kpi-label">Saved by Cache</div>
+                <div id="kpi-cache-savings" class="kpi-val accent-emerald">$0.00</div>
+              </div>
+              <div class="kpi-item">
+                <div class="kpi-label">Input + Cache Cost</div>
+                <div id="kpi-in-cost" class="kpi-val">$0.00</div>
+              </div>
+              <div class="kpi-item">
+                <div class="kpi-label">Output Cost</div>
+                <div id="kpi-out-cost" class="kpi-val">$0.00</div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Orchestrator / Multi-Model Breakdown -->
+          <section id="models-card" class="card hidden">
+            <div class="section-head">
+              <h2 id="models-card-title">Orchestrator Dual-Model</h2>
+              <span id="models-switches-pill" class="badge subtle"></span>
+            </div>
+            <div id="models-stacked-bar" class="stacked-bar" aria-label="Model token share"></div>
+            <div id="models-rows" class="model-rows"></div>
+          </section>
+
+          <!-- Turn-by-Turn Context Growth Chart -->
+          <section class="card">
+            <div class="section-head">
+              <h2>Turn-by-Turn Context Growth</h2>
+              <div class="legend-inline">
+                <span class="lg"><i class="dot dot-cached"></i>Cached</span>
+                <span class="lg"><i class="dot dot-fresh"></i>Fresh</span>
+                <span id="lg-planner" class="lg hidden"><i class="dot dot-planner"></i>Plan</span>
+                <span id="lg-worker" class="lg hidden"><i class="dot dot-worker"></i>Exec</span>
+              </div>
+            </div>
+            <div id="turn-chart-wrap" class="chart-wrap"></div>
+            <div id="turn-hover-info" class="hover-info muted small">Hover or focus a turn bar to inspect prompt delta &amp; tools.</div>
+          </section>
+
+          <!-- Top Context Consumers -->
+          <section class="card">
+            <div class="section-head">
+              <h2>Top Context Consumers</h2>
+              <span class="muted small">Largest prompt deltas</span>
+            </div>
+            <div id="top-consumers" class="list-rows"></div>
+          </section>
+
+          <!-- Subagents / Swarm Rollup -->
+          <section id="subagents-card" class="card hidden">
+            <div class="section-head">
+              <h2>Subagents &amp; Swarm</h2>
+              <span id="subagents-summary" class="muted small"></span>
+            </div>
+            <div id="subagents-list" class="list-rows"></div>
+          </section>
+        </div>
+      </section>
+
+      <!-- All Sessions Panel -->
+      <section id="panel-sessions" class="panel" role="tabpanel" aria-labelledby="tab-btn-sessions">
+        <div class="toolbar">
+          <input id="sessions-search" type="search" class="search-input" placeholder="Search conversations, models, IDs…" autocomplete="off">
+          <div class="toolbar-row">
+            <div class="filter-pills" role="group" aria-label="Filter by surface">
+              <button type="button" class="pill active" data-surface="all">All</button>
+              <button type="button" class="pill" data-surface="app">App</button>
+              <button type="button" class="pill" data-surface="cli">CLI</button>
+              <button type="button" class="pill" data-surface="ide">IDE</button>
+            </div>
+            <label class="select-wrap" title="Sort sessions">
+              <span class="sr-only">Sort sessions</span>
+              <select id="sessions-sort" aria-label="Sort sessions">
+                <option value="recent">Recent</option>
+                <option value="cost">Highest Cost</option>
+                <option value="context">Highest Context</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        <div id="sessions-summary" class="sessions-summary"></div>
+        <div id="sessions-list" class="sessions-list"></div>
+      </section>
+
+      <!-- Usage & Cost Statistics Panel -->
+      <section id="panel-stats" class="panel" role="tabpanel" aria-labelledby="tab-btn-stats">
+        <div class="toolbar">
+          <div class="toolbar-row">
+            <div id="stats-period-pills" class="filter-pills stats-period-pills" role="group" aria-label="Statistics period">
+              <button type="button" class="pill" data-period="day">Day</button>
+              <button type="button" class="pill active" data-period="week">Week</button>
+              <button type="button" class="pill" data-period="month">Month</button>
+              <button type="button" class="pill" data-period="all">All</button>
+              <button type="button" class="pill" data-period="custom">Custom</button>
+            </div>
+            <div class="stats-controls-right">
+              <label class="select-wrap" title="Filter statistics by surface">
+                <span class="sr-only">Filter statistics by surface</span>
+                <select id="stats-surface" aria-label="Filter statistics by surface">
+                  <option value="all">All Surfaces</option>
+                  <option value="app">App</option>
+                  <option value="cli">CLI</option>
+                  <option value="ide">IDE</option>
+                </select>
+              </label>
+              <button id="btn-sync-pricing" type="button" class="btn secondary small-btn" title="Check Last-Modified & sync remote pricing catalog">
+                ↻ Sync
+              </button>
+            </div>
+          </div>
+
+          <div id="stats-custom-bar" class="stats-custom-bar hidden">
+            <label class="date-field">
+              <span class="date-label">From</span>
+              <input id="stats-from" type="datetime-local" class="date-input" aria-label="Custom start time">
+            </label>
+            <label class="date-field">
+              <span class="date-label">To</span>
+              <input id="stats-to" type="datetime-local" class="date-input" aria-label="Custom end time">
+            </label>
+            <button id="btn-stats-apply" type="button" class="btn small-btn primary-btn">Apply</button>
+          </div>
+        </div>
+
+        <div class="stats-summary-row">
+          <span id="stats-range-summary" class="sessions-summary"></span>
+          <span id="stats-pricing-note" class="muted small"></span>
+        </div>
+
+        <div class="stack">
+          <section class="card">
+            <div class="section-head">
+              <h2>Cost &amp; Token Totals</h2>
+              <span id="stats-sessions-pill" class="badge subtle">0 sessions</span>
+            </div>
+            <div class="kpi-grid">
+              <div class="kpi-item">
+                <div class="kpi-label">Total Cost</div>
+                <div id="stats-kpi-cost" class="kpi-val accent-cost">$0.00</div>
+              </div>
+              <div class="kpi-item">
+                <div class="kpi-label">Avg / Day</div>
+                <div id="stats-kpi-avg-day" class="kpi-val">$0.00</div>
+              </div>
+              <div class="kpi-item">
+                <div class="kpi-label">Cache Saved</div>
+                <div id="stats-kpi-saved" class="kpi-val accent-emerald">$0.00</div>
+              </div>
+              <div class="kpi-item">
+                <div class="kpi-label">Cache Hit Rate</div>
+                <div id="stats-kpi-hit-rate" class="kpi-val accent-emerald">0%</div>
+              </div>
+              <div class="kpi-item">
+                <div class="kpi-label">Total Input</div>
+                <div id="stats-kpi-in" class="kpi-val">0</div>
+              </div>
+              <div class="kpi-item">
+                <div class="kpi-label">Cached Read</div>
+                <div id="stats-kpi-cached" class="kpi-val">0</div>
+              </div>
+              <div class="kpi-item">
+                <div class="kpi-label">Total Output</div>
+                <div id="stats-kpi-out" class="kpi-val">0</div>
+              </div>
+              <div class="kpi-item">
+                <div class="kpi-label">Sessions / Turns</div>
+                <div id="stats-kpi-sessions" class="kpi-val">0 / 0</div>
+              </div>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="section-head">
+              <h2>Cost &amp; Token Timeline</h2>
+              <span id="stats-granularity-pill" class="badge subtle">day</span>
+            </div>
+            <div id="stats-chart-wrap" class="chart-wrap"></div>
+            <div id="stats-hover-info" class="hover-info muted small">Hover or focus a bar to inspect usage and cost.</div>
+          </section>
+
+          <section id="stats-models-card" class="card">
+            <div class="section-head">
+              <h2>Model Cost Breakdown</h2>
+              <span id="stats-models-count" class="badge subtle">0</span>
+            </div>
+            <div id="stats-models-bar" class="stacked-bar" aria-label="Model cost share"></div>
+            <div id="stats-models-rows" class="model-rows"></div>
+          </section>
+
+          <section class="card">
+            <div class="section-head">
+              <h2>Top Sessions in Range</h2>
+              <span class="muted small">Click to inspect session</span>
+            </div>
+            <div id="stats-top-sessions" class="list-rows"></div>
+          </section>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

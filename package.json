@@ -1,0 +1,19 @@
+{
+  "name": "antigravity-extensions",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Monorepo for Google Antigravity CLI, App, and IDE extensions.",
+  "workspaces": [
+    "plugins/*"
+  ],
+  "scripts": {
+    "test": "node ./scripts/run-all.mjs test",
+    "validate": "node ./scripts/run-all.mjs validate",
+    "check": "node ./scripts/run-all.mjs check",
+    "list": "node ./scripts/run-all.mjs list"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

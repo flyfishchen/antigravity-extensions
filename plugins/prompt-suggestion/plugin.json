@@ -1,0 +1,12 @@
+{
+  "name": "prompt-suggestion",
+  "displayName": "Prompt Suggestion",
+  "version": "1.0.0",
+  "description": "Zero-token heuristic follow-up prompt predictor with dimmed CLI statusline preview, :s shortcut expansion, and one-click App/IDE Sidecar suggestions.",
+  "logo": "assets/logo.svg",
+  "suggestedPrompts": [
+    "Show predicted follow-up prompt suggestions for the current conversation",
+    "Open the Prompt Suggestion side panel in Antigravity App",
+    "Configure Antigravity CLI statusline to show dimmed prompt suggestions"
+  ]
+}

@@ -1,0 +1,5 @@
+#!/usr/bin/env node
+import { runPromptSuggestionCli } from './prompt-suggestion.mjs';
+
+const code = await runPromptSuggestionCli(process.argv.slice(2));
+process.exit(code);

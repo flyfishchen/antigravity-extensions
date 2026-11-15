@@ -1,0 +1,4 @@
+#!/usr/bin/env node
+process.env.AGY_CTX_DETAIL = '1';
+const { main } = await import('./statusline.mjs');
+await main();

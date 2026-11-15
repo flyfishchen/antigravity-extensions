@@ -1,0 +1,4 @@
+#!/usr/bin/env node
+import { runContextPanel } from './context-panel.mjs';
+
+await runContextPanel(process.argv.slice(2));

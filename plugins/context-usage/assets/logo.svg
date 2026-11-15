@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" fill="none">
+  <defs>
+    <linearGradient id="arc-track" x1="16" y1="16" x2="112" y2="112" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#64748b" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#94a3b8" stop-opacity="0.22"/>
+    </linearGradient>
+    <linearGradient id="arc-emerald" x1="18" y1="88" x2="64" y2="16" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#059669"/>
+      <stop offset="100%" stop-color="#10b981"/>
+    </linearGradient>
+    <linearGradient id="arc-cyan" x1="64" y1="16" x2="108" y2="56" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#06b6d4"/>
+      <stop offset="100%" stop-color="#0ea5e9"/>
+    </linearGradient>
+    <linearGradient id="arc-amber" x1="108" y1="56" x2="96" y2="96" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#f97316"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Subtle outer track ring inside 10% margin (artwork within [14, 114]) -->
+  <path d="M 32.8 95.2 A 44 44 0 1 1 95.2 95.2" stroke="url(#arc-track)" stroke-width="11" stroke-linecap="round"/>
+
+  <!-- Segment 1: Emerald (healthy usage) -->
+  <path d="M 32.8 95.2 A 44 44 0 0 1 49.0 22.6" stroke="url(#arc-emerald)" stroke-width="11" stroke-linecap="round"/>
+
+  <!-- Segment 2: Cyan (system/context) -->
+  <path d="M 58.0 20.4 A 44 44 0 0 1 102.8 43.2" stroke="url(#arc-cyan)" stroke-width="11" stroke-linecap="round"/>
+
+  <!-- Segment 3: Amber (headroom / warning zone) -->
+  <path d="M 106.5 52.8 A 44 44 0 0 1 100.8 87.6" stroke="url(#arc-amber)" stroke-width="11" stroke-linecap="round"/>
+
+  <!-- Inner center ring -->
+  <circle cx="64" cy="64" r="24" stroke="#64748b" stroke-opacity="0.22" stroke-width="2"/>
+
+  <!-- Token pulse / gauge needle mark -->
+  <path d="M 48 66 H 55 L 60 54 L 67 74 L 72 62 H 80" stroke="#06b6d4" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="64" cy="64" r="3.5" fill="#10b981"/>
+</svg>

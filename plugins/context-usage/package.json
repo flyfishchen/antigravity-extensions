@@ -1,0 +1,18 @@
+{
+  "name": "antigravity-context-usage-plugin",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Real-time LLM context window monitor and TUI statusline plugin for Antigravity CLI and Antigravity App.",
+  "bin": {
+    "agy-context-statusline": "./bin/statusline.mjs",
+    "agy-context-usage": "./bin/context-usage.mjs"
+  },
+  "scripts": {
+    "test": "node --test test/plugin.test.mjs",
+    "preview": "node sidecars/context_monitor/main.mjs --standalone --port 8787"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

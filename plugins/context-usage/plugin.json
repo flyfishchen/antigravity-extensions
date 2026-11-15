@@ -1,0 +1,12 @@
+{
+  "name": "context-usage",
+  "displayName": "Context Usage Monitor",
+  "version": "1.0.0",
+  "description": "Real-time LLM context window gauge, token category breakdown, cache hit & cost telemetry, and TUI statusline for Antigravity CLI and Antigravity App.",
+  "logo": "assets/logo.svg",
+  "suggestedPrompts": [
+    "Show current conversation context usage, estimated cost, and largest token consumers",
+    "Open the live Context Usage side panel in Antigravity App",
+    "Configure Antigravity CLI statusline to show live context usage and cost"
+  ]
+}
