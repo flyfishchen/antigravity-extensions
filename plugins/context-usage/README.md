@@ -5,15 +5,15 @@
 ## 功能特性 (Features)
 
 1. **Antigravity CLI (`agy`) 零 Skill / 零 Token 面板套件**
-   - **对话内即时渲染面板（`PreInvocation` Hook：`hooks/intercept-panel.mjs`）**：在 `agy` 输入 `:ctx`、`:ctx all`（或 `:ctx all cost` 按成本降序）、**日/周/月/自定义时间统计**（`:ctx day`、`:ctx week`、`:ctx month`、`:ctx stats 2026-11-01..2026-11-15` 或 `:ctx stats --from ... --to ...`）或不带问题的 `/context-usage`，Hook 会在调用大模型前拦截（`terminationBehavior: "terminate"`），零 Token 消耗直接渲染完整仪表板（分类明细、Cache 命中与已省费用、Orchestrator 双模型分角色成本、Top Consumers 及时间窗口成本趋势）。附带自然语言提问时则自动放行，不阻断正常对话。
-   - **Shell 边框面板（`bin/ctx` / `!ctx`）**：在 `agy` 中直接输入 `!ctx`、`!ctx --all`、`!ctx --stats week` 或 `!ctx --from 2026-11-01 --to 2026-11-15`，输出圆角边框（`╭─── ... ───╮`）与对齐的中文表格面板，不污染对话历史。
+   - **对话内即时渲染面板（`PreInvocation` Hook：`hooks/intercept-panel.mjs`）**：在 `agy` 输入 `:ctx`、`:ctx all`（或 `:ctx all cost` 按成本降序）、**日/周/月/指定日期/自定义时间统计**（`:ctx day`、`:ctx week`、`:ctx month`、`:ctx 2026-11-16`、`:ctx 2026-11-01 2026-11-15`、`:ctx stats 2026-11-01..2026-11-15` 或 `:ctx stats --from ... --to ...`）或不带问题的 `/context-usage`，Hook 会在调用大模型前拦截（`terminationBehavior: "terminate"`），零 Token 消耗直接渲染完整仪表板（分类明细、Cache 命中与已省费用、Orchestrator 双模型分角色成本、Top Consumers 及时间窗口成本趋势）。附带自然语言提问时则自动放行，不阻断正常对话。
+   - **Shell 边框面板（`bin/ctx` / `!ctx`）**：在 `agy` 中直接输入 `!ctx`、`!ctx --all`、`!ctx day`、`!ctx 2026-11-16`、`!ctx --stats week` 或 `!ctx --from 2026-11-01 --to 2026-11-15`，输出圆角边框（`╭─── ... ───╮`）与对齐的中文表格面板，不污染对话历史。
    - **独立全屏实时交互 TUI（`ctx` / `agy-ctx` / `context-usage --tui`）**：在分屏终端 / tmux 中运行 `ctx` 或 `agy-ctx`，进入 altscreen 实时刷新视图（1.5s），支持 `Session` / `All Sessions` / `Stats` 三标签页（`Tab`/`1`/`2`/`3`）、`↑/↓` 逐轮检查成本与细节、`p` 切换统计周期（Day/Week/Month/All）、`s` 切换排序、`f` 表面过滤与 `w` 窗口容量切换。
    - **底部实时状态栏（`bin/statusline.mjs` & 双行详情版 `bin/statusline-detail`）**：
      - 默认单行：`bin/statusline.mjs` 显示模型（Orchestrator 会带 `[PLAN]`/`[EXEC]`）、彩色进度条、占比、`⚠>200k`、`⚡ cache`、累计输入/输出与实时估算成本（可通过 `AGY_CTX_NO_COST=1` 隐藏）。
      - 双行详情：`bin/statusline-detail`（或 `AGY_CTX_DETAIL=1`）在第二行常驻展示 `Sys / Usr / Mod / Tool` 分类用量、`◆Plan / ▸Exec` 轮数与分角色成本，以及 `Cost` 与缓存节省总额。
 
 2. **终端详情分析器 (`bin/context-usage.mjs`)**
-   - 支持 `--current`、`--conv <id>`、`--file <transcript.jsonl>`、`--all`、`--stats [day|week|month|all]`、`--day`、`--week`、`--month`、`--from <date>`、`--to <date>`、`--surface <all|app|cli|ide>`、`--sort <recent|cost|context>`、`--window <tokens>`、`--panel`、`--box`、`--tui`、`--json`。
+   - 支持 `--current`、`--conv <id>`、`--file <transcript.jsonl>`、`--all`、`--stats [day|week|month|all|YYYY-MM-DD]`、位置简写（`day` / `week` / `month` / `YYYY-MM-DD [YYYY-MM-DD]`）、`--day`、`--week`、`--month`、`--from <date>`、`--to <date>`、`--surface <all|app|cli|ide>`、`--sort <recent|cost|context>`、`--window <tokens>`、`--panel`、`--box`、`--tui`、`--json`。
    - 展示 4 类上下文占比堆叠条、精确到每轮与每模型的 USD 成本及 Prompt Cache 节省金额、日/周/月/自定义时间维度的费用趋势与模型/会话排行、Orchestrator 双模型切换与成本对比，以及 Subagents / Swarm 子代理汇总。
 
 3. **Antigravity App / IDE 侧边栏与全局面板 (`sidecars/context_monitor/`)**
@@ -95,8 +95,10 @@ node bin/context-usage.mjs
 # 列出 App / CLI / IDE 最近会话上下文占用排行
 node bin/context-usage.mjs --all
 
-# 按日 / 周 / 月 / 自定义时间区间统计用量与成本
+# 按日 / 周 / 月 / 指定日期 / 自定义时间区间统计用量与成本
 node bin/context-usage.mjs --stats day
+node bin/context-usage.mjs --stats 2026-11-16
+node bin/context-usage.mjs 2026-11-01 2026-11-15 --box
 node bin/context-usage.mjs --stats week
 node bin/context-usage.mjs --stats month --surface cli
 node bin/context-usage.mjs --from 2026-11-01 --to 2026-11-15 --box

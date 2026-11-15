@@ -9,7 +9,12 @@ import {
   listRecentConversations,
   syncRemotePricingCache,
 } from '../sidecars/context_monitor/analyzer.mjs';
-import { runContextPanel } from './context-panel.mjs';
+import {
+  applyPositionalStatsToken,
+  applyStatsPeriodOrDate,
+  resolvePositionalDates,
+  runContextPanel,
+} from './context-panel.mjs';
 
 const USE_COLOR = !process.env.NO_COLOR && process.env.TERM !== 'dumb';
 
@@ -61,6 +66,7 @@ function parseArgs(argv) {
     explicitTarget: false,
     help: false,
   };
+  const positionalDates = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--help' || a === '-h') opts.help = true;
@@ -85,19 +91,16 @@ function parseArgs(argv) {
       opts.stats = true;
       opts.explicitTarget = true;
       if (argv[i + 1] && !argv[i + 1].startsWith('-')) {
-        opts.period = argv[++i];
+        applyStatsPeriodOrDate(opts, argv[++i], positionalDates);
       }
     } else if (a.startsWith('--stats=')) {
-      opts.stats = true;
-      opts.period = a.slice('--stats='.length) || 'week';
+      applyStatsPeriodOrDate(opts, a.slice('--stats='.length) || 'week', positionalDates);
       opts.explicitTarget = true;
     } else if (a === '--period' && argv[i + 1]) {
-      opts.stats = true;
-      opts.period = argv[++i];
+      applyStatsPeriodOrDate(opts, argv[++i], positionalDates);
       opts.explicitTarget = true;
     } else if (a.startsWith('--period=')) {
-      opts.stats = true;
-      opts.period = a.slice('--period='.length) || 'week';
+      applyStatsPeriodOrDate(opts, a.slice('--period='.length) || 'week', positionalDates);
       opts.explicitTarget = true;
     } else if (a === '--from' && argv[i + 1]) {
       opts.from = argv[++i];
@@ -148,7 +151,13 @@ function parseArgs(argv) {
     else if (a.startsWith('--window=')) opts.windowSize = Number(a.slice('--window='.length)) || 0;
     else if (a === '--sort' && argv[i + 1]) opts.sort = argv[++i];
     else if (a.startsWith('--sort=')) opts.sort = a.slice('--sort='.length);
+    else if (!a.startsWith('-')) {
+      if (applyPositionalStatsToken(opts, a, positionalDates)) {
+        opts.explicitTarget = true;
+      }
+    }
   }
+  resolvePositionalDates(opts, positionalDates);
   return opts;
 }
 
@@ -156,15 +165,15 @@ function usage() {
   return [
     `${C.bold}Antigravity Context Usage Inspector${C.reset}`,
     '',
-    'Usage: agy-context-usage [options]',
+    'Usage: agy-context-usage [options | day | week | month | YYYY-MM-DD [YYYY-MM-DD]]',
     '',
     'Options:',
     '  --current          Inspect active conversation ($ANTIGRAVITY_CONVERSATION_ID)',
     '  --conv <id>        Inspect a specific conversation ID across App/CLI/IDE',
     '  --file <path>      Inspect a specific transcript.jsonl file',
     '  --all              List recent conversations across App/CLI/IDE',
-    '  --stats [period]   Time-windowed cost & token statistics (day|week|month|all|custom)',
-    '  --day, --week, --month  Shorthand time-window stats presets',
+    '  --stats [period]   Time-windowed cost & token statistics (day|week|month|all|YYYY-MM-DD|custom)',
+    '  --day, --week, --month  Shorthand time-window stats presets (or pass day/week/month/YYYY-MM-DD)',
     '  --from <date>      Custom stats start boundary (YYYY-MM-DD, ISO, or local datetime)',
     '  --to <date>        Custom stats end boundary (YYYY-MM-DD, ISO, or local datetime)',
     '  --surface <name>   Filter stats by surface: all | app | cli | ide',

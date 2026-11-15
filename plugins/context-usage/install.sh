@@ -69,30 +69,62 @@ configure_statusline() {
   if [[ -f "${SETTINGS_FILE}" ]]; then
     cp "${SETTINGS_FILE}" "${SETTINGS_FILE}.bak"
   fi
-  SETTINGS_PATH="${SETTINGS_FILE}" STATUSLINE_CMD="${STATUSLINE_CMD}" node -e '
+  SETTINGS_PATH="${SETTINGS_FILE}" UPSTREAM_PATH="${CLI_DIR}/prompt-suggestion-upstream.json" STATUSLINE_CMD="${STATUSLINE_CMD}" node -e '
     const fs = require("node:fs");
-    const path = process.env.SETTINGS_PATH;
+    const os = require("node:os");
+    const path = require("node:path");
+    const settingsPath = process.env.SETTINGS_PATH;
+    const upstreamPath = process.env.UPSTREAM_PATH;
     const cmd = process.env.STATUSLINE_CMD;
     let data = {};
-    if (fs.existsSync(path)) {
-      const raw = fs.readFileSync(path, "utf8").trim();
+    if (fs.existsSync(settingsPath)) {
+      const raw = fs.readFileSync(settingsPath, "utf8").trim();
       if (raw) {
         data = JSON.parse(raw);
       }
     }
-    data.statusLine = {
+    const nextCfg = {
       type: "command",
       command: cmd,
       enabled: true,
       padding: 0,
       stack_with_default: true
     };
-    fs.writeFileSync(path, JSON.stringify(data, null, 2) + "\n", "utf8");
+    const curCmd = String(data?.statusLine?.command || "").trim();
+    if (curCmd.includes("prompt-suggestion/bin/statusline")) {
+      const home = process.env.HOME || os.homedir();
+      const firstTok = curCmd.split(/\s+/)[0];
+      const expanded = firstTok.startsWith("~/") ? path.join(home, firstTok.slice(2)) : firstTok;
+      if (fs.existsSync(expanded)) {
+        fs.writeFileSync(upstreamPath, JSON.stringify(nextCfg, null, 2) + "\n", "utf8");
+        console.log("Updated prompt-suggestion upstream statusLine in " + upstreamPath);
+        process.exit(0);
+      }
+    }
+    data.statusLine = nextCfg;
+    fs.writeFileSync(settingsPath, JSON.stringify(data, null, 2) + "\n", "utf8");
+    console.log("Configured statusLine in " + settingsPath);
   '
-  echo "Configured statusLine in ${SETTINGS_FILE}"
 }
 
 remove_statusline() {
+  local upstream_file="${CLI_DIR}/prompt-suggestion-upstream.json"
+  if [[ -f "${upstream_file}" ]]; then
+    UPSTREAM_PATH="${upstream_file}" node -e '
+      const fs = require("node:fs");
+      const upstreamPath = process.env.UPSTREAM_PATH;
+      try {
+        const raw = fs.readFileSync(upstreamPath, "utf8").trim();
+        const data = raw ? JSON.parse(raw) : null;
+        if (data && String(data.command || "").includes("context-usage/bin/statusline")) {
+          fs.unlinkSync(upstreamPath);
+          console.log("Removed upstream statusLine entry from " + upstreamPath);
+        }
+      } catch {
+        // Ignore malformed upstream file.
+      }
+    '
+  fi
   if [[ ! -f "${SETTINGS_FILE}" ]]; then
     return
   fi

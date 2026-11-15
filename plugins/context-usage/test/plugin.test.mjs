@@ -955,6 +955,113 @@ test('hooks/intercept-panel.mjs: intercepts bare panel commands with zero tokens
     );
     assert.equal(resMissingConv.terminationBehavior, 'terminate');
     assert.match(resMissingConv.injectSteps[0].systemMessage.metadata.user_markdown, /未找到会话/);
+
+    // 8. invocationNum > 0 (number or numeric string) fast-returns {} mid-turn even on unhandled :ctx step
+    writeJsonl(cliTranscript, [
+      ...baseSteps,
+      { step_index: 3, type: 'USER_INPUT', content: '<USER_REQUEST>\n:ctx\n</USER_REQUEST>' },
+    ]);
+    assert.deepEqual(
+      evaluatePanelIntercept({
+        conversationId: convCli,
+        transcriptPath: cliTranscript,
+        lastUserInput: ':ctx',
+        invocationNum: 1,
+      }),
+      {}
+    );
+    assert.deepEqual(
+      evaluatePanelIntercept({
+        conversationId: convCli,
+        transcriptPath: cliTranscript,
+        lastUserInput: ':ctx',
+        invocationNum: '2',
+      }),
+      {}
+    );
+
+    // 9. Orphan zero-token Turn #1 (:ctx USER_INPUT without PLANNER_RESPONSE) followed by unflushed Turn #2 prompt
+    assert.deepEqual(
+      evaluatePanelIntercept({
+        conversationId: convCli,
+        transcriptPath: cliTranscript,
+        lastUserInput: '<USER_REQUEST>\n帮我重构函数\n</USER_REQUEST>',
+        invocationNum: 0,
+      }),
+      {}
+    );
+
+    // 10. Completed 5-step transcript: numeric-string initialNumSteps intercepts fresh :ctx, empty input passes through
+    writeJsonl(cliTranscript, [
+      ...baseSteps,
+      { step_index: 3, type: 'USER_INPUT', content: '<USER_REQUEST>\n:ctx\n</USER_REQUEST>' },
+      { step_index: 4, type: 'PLANNER_RESPONSE', model: 'gemini-pro-orchestrator', input_tokens: 21000, output_tokens: 50 },
+    ]);
+    const resStringInitSteps = evaluatePanelIntercept(
+      {
+        conversationId: convCli,
+        transcriptPath: cliTranscript,
+        lastUserInput: '<USER_REQUEST>\n:ctx\n</USER_REQUEST>',
+        initialNumSteps: '5',
+      },
+      { dirs: [cliAppData, appAppData] }
+    );
+    assert.equal(resStringInitSteps.terminationBehavior, 'terminate');
+    assert.deepEqual(
+      evaluatePanelIntercept({
+        conversationId: convCli,
+        transcriptPath: cliTranscript,
+        lastUserInput: '',
+        initialNumSteps: 5,
+      }),
+      {}
+    );
+
+    // 11. Orchestrator [plan review] SYSTEM_MESSAGE after PLANNER_RESPONSE with unchanged lastUserInput passes through {}
+    writeJsonl(cliTranscript, [
+      ...baseSteps,
+      { step_index: 3, type: 'USER_INPUT', content: '<USER_REQUEST>\n:ctx\n</USER_REQUEST>' },
+      {
+        step_index: 4,
+        type: 'PLANNER_RESPONSE',
+        model: 'gemini-pro-orchestrator',
+        input_tokens: 21000,
+        output_tokens: 50,
+        tool_calls: [{ name: 'exit_plan_mode', args: { plan: 'Execute' } }],
+      },
+      {
+        step_index: 5,
+        type: 'SYSTEM_MESSAGE',
+        content: '[plan review] Checkpoint reached.',
+      },
+    ]);
+    assert.deepEqual(
+      evaluatePanelIntercept({
+        conversationId: convCli,
+        transcriptPath: cliTranscript,
+        lastUserInput: ':ctx',
+        initialNumSteps: 6,
+      }),
+      {}
+    );
+
+    // 12. snake_case payload keys intercept cleanly
+    writeJsonl(cliTranscript, [
+      ...baseSteps,
+      { step_index: 3, type: 'USER_INPUT', content: '<USER_REQUEST>\n:ctx\n</USER_REQUEST>' },
+      { step_index: 4, type: 'PLANNER_RESPONSE', model: 'gemini-pro-orchestrator', input_tokens: 21000, output_tokens: 50 },
+    ]);
+    const resSnakeCase = evaluatePanelIntercept(
+      {
+        conversation_id: convCli,
+        transcript_path: cliTranscript,
+        last_user_input: ':ctx',
+        initial_num_steps: 5,
+      },
+      { dirs: [cliAppData, appAppData] }
+    );
+    assert.equal(resSnakeCase.terminationBehavior, 'terminate');
+    assert.match(resSnakeCase.injectSteps[0].systemMessage.metadata.user_markdown, /Category/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -2217,6 +2324,96 @@ test('stats: day/week/month/custom range aggregation across CLI, Box Panel, Hook
       { dirs, env, nowMs, disableRemoteRefresh: true }
     );
     assert.deepEqual(passThrough, {});
+
+    // 5b. Bare single calendar date & dual-date shorthands isolate exact range
+    const singleDayYmd = ymdForOffset(now, 3);
+    const bareDateIntercept = evaluatePanelIntercept(
+      {
+        conversationId: cToday,
+        transcriptPath: join(cliData, 'brain', cToday, '.system_generated', 'logs', 'transcript.jsonl'),
+        lastUserInput: `<USER_REQUEST>\n:ctx ${singleDayYmd}\n</USER_REQUEST>`,
+      },
+      { dirs, env, nowMs, disableRemoteRefresh: true }
+    );
+    assert.equal(bareDateIntercept.terminationBehavior, 'terminate');
+    const bareDateMd = bareDateIntercept.injectSteps[0].systemMessage.metadata.user_markdown;
+    assert.match(bareDateMd, /\$0\.45/);
+    assert.match(bareDateMd, /\*\*1\*\*\s*个会话/);
+    assert.match(bareDateMd, /1 天/);
+    assert.doesNotMatch(bareDateMd, /\$0\.90/);
+    assert.doesNotMatch(bareDateMd, /sidecar:\/\//);
+
+    for (const cmdText of [`:ctx stats ${singleDayYmd}`, `:ctx --stats=${singleDayYmd}`]) {
+      const rSingle = evaluatePanelIntercept(
+        {
+          conversationId: cToday,
+          transcriptPath: join(cliData, 'brain', cToday, '.system_generated', 'logs', 'transcript.jsonl'),
+          lastUserInput: cmdText,
+        },
+        { dirs, env, nowMs, disableRemoteRefresh: true }
+      );
+      assert.equal(rSingle.terminationBehavior, 'terminate');
+      const mdSingle = rSingle.injectSteps[0].systemMessage.metadata.user_markdown;
+      assert.match(mdSingle, /\$0\.45/);
+      assert.match(mdSingle, /\*\*1\*\*\s*个会话/);
+    }
+
+    const dualDateIntercept = evaluatePanelIntercept(
+      {
+        conversationId: cToday,
+        transcriptPath: join(cliData, 'brain', cToday, '.system_generated', 'logs', 'transcript.jsonl'),
+        lastUserInput: `:ctx ${fromYmd} ${toYmd}`,
+      },
+      { dirs, env, nowMs, disableRemoteRefresh: true }
+    );
+    assert.equal(dualDateIntercept.terminationBehavior, 'terminate');
+    const dualDateMd = dualDateIntercept.injectSteps[0].systemMessage.metadata.user_markdown;
+    assert.match(dualDateMd, /\$0\.90/);
+    assert.match(dualDateMd, /\*\*2\*\*\s*个会话/);
+
+    assert.deepEqual(
+      evaluatePanelIntercept(
+        {
+          conversationId: cToday,
+          transcriptPath: join(cliData, 'brain', cToday, '.system_generated', 'logs', 'transcript.jsonl'),
+          lastUserInput: `:ctx ${singleDayYmd} 为什么这么贵`,
+        },
+        { dirs, env, nowMs, disableRemoteRefresh: true }
+      ),
+      {}
+    );
+
+    // 5c. bin/ctx and bin/context-usage.mjs positional date & day shorthands
+    const ctxDateBox = await execFileAsync(process.execPath, [join(PLUGIN_ROOT, 'bin', 'ctx'), singleDayYmd], {
+      encoding: 'utf8',
+      env,
+    });
+    assert.match(ctxDateBox.stdout, /\$0\.45/);
+    assert.match(ctxDateBox.stdout, /Sessions:\s*1\b/);
+    assert.match(ctxDateBox.stdout, /\(1d\b/);
+
+    const ctxDayBox = await execFileAsync(process.execPath, [join(PLUGIN_ROOT, 'bin', 'ctx'), 'day'], {
+      encoding: 'utf8',
+      env,
+    });
+    assert.match(ctxDayBox.stdout, /Today/);
+    assert.match(ctxDayBox.stdout, /\$0\.45/);
+    assert.match(ctxDayBox.stdout, /Sessions:\s*1\b/);
+
+    for (const cliArgs of [
+      [singleDayYmd, '--json'],
+      ['--stats', singleDayYmd, '--json'],
+    ]) {
+      const cliDateRes = await execFileAsync(
+        process.execPath,
+        [join(PLUGIN_ROOT, 'bin', 'context-usage.mjs'), ...cliArgs],
+        { encoding: 'utf8', env }
+      );
+      const parsedCliDate = JSON.parse(cliDateRes.stdout);
+      assert.equal(parsedCliDate.period, 'custom');
+      assert.equal(parsedCliDate.totals.sessionsCount, 1);
+      assert.equal(parsedCliDate.totals.costUsd, 0.45);
+    }
 
     // 6. Sidecar /api/stats endpoint & Web UI contract checks
     app = await createMonitorApp({

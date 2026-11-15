@@ -14,8 +14,7 @@ Google Antigravity（CLI `agy` / App 2.0 / IDE）扩展插件集合仓库，统�
 ├── scripts/
 │   └── run-all.mjs           # 多插件 strict 校验、规则预算检查与测试执行器
 └── plugins/
-    ├── context-usage/        # 实时上下文用量监控与状态栏插件
-    └── prompt-suggestion/    # 零 Token 启发式追问预测、暗色状态栏与 :s 快捷采纳插件
+    └── context-usage/        # 实时上下文用量监控与状态栏插件
 ```
 
 ## 插件列表
@@ -23,7 +22,6 @@ Google Antigravity（CLI `agy` / App 2.0 / IDE）扩展插件集合仓库，统�
 | 插件目录 | 说明 | 文档 |
 | :--- | :--- | :--- |
 | `context-usage` | 实时上下文窗口仪表板、零 Token `:ctx` Hook、终端 TUI、`agy` 状态栏与 App/IDE Sidecar 面板 | [plugins/context-usage/README.md](./plugins/context-usage/README.md) |
-| `prompt-suggestion` | 零 Token 启发式追问预测、确定性静默过滤器、暗色 `statusLine` 预览、`:s` 快捷展开与 Sidecar 一键发送面板 | [plugins/prompt-suggestion/README.md](./plugins/prompt-suggestion/README.md) |
 
 ## 快速安装
 
@@ -33,11 +31,10 @@ Google Antigravity（CLI `agy` / App 2.0 / IDE）扩展插件集合仓库，统�
 
 # 仅安装指定插件
 ./install.sh context-usage
-./install.sh prompt-suggestion
 
 # 复制模式安装或卸载
-./install.sh prompt-suggestion --copy
-./install.sh prompt-suggestion --uninstall
+./install.sh context-usage --copy
+./install.sh context-usage --uninstall
 ```
 
 ## 校验与测试

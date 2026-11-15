@@ -608,6 +608,95 @@ export function renderBoxStatsPanel(stats, opts = {}) {
   return lines.join('\n');
 }
 
+const DATE_ONLY_RE = /^20\d{2}[-/]\d{1,2}[-/]\d{1,2}$/;
+const DATE_TOKEN_RE = /^20\d{2}[-/]\d{1,2}[-/]\d{1,2}(?:[T\s]\d{1,2}:\d{2}(?::\d{2})?)?$/;
+const DATE_RANGE_TOKEN_RE =
+  /^(20\d{2}[-/]\d{1,2}[-/]\d{1,2}(?:[T\s]\d{1,2}:\d{2}(?::\d{2})?)?)(?:\.\.|~)(20\d{2}[-/]\d{1,2}[-/]\d{1,2}(?:[T\s]\d{1,2}:\d{2}(?::\d{2})?)?)$/;
+
+export function applyStatsPeriodOrDate(opts, val, positionalDates) {
+  const raw = String(val || 'week');
+  if (DATE_RANGE_TOKEN_RE.test(raw)) {
+    const rm = DATE_RANGE_TOKEN_RE.exec(raw);
+    opts.stats = true;
+    opts.period = 'custom';
+    opts.from = rm[1];
+    opts.to = rm[2];
+    return;
+  }
+  if (DATE_TOKEN_RE.test(raw)) {
+    opts.stats = true;
+    opts.period = 'custom';
+    if (positionalDates.length < 2) positionalDates.push(raw);
+    return;
+  }
+  opts.stats = true;
+  opts.period = raw.toLowerCase();
+}
+
+export function applyPositionalStatsToken(opts, arg, positionalDates) {
+  const lower = String(arg || '').toLowerCase();
+  if (lower === 'stats') {
+    opts.stats = true;
+    return true;
+  }
+  if (lower === 'day' || lower === 'today' || lower === '1d') {
+    opts.stats = true;
+    opts.period = 'day';
+    return true;
+  }
+  if (lower === 'week' || lower === '7d') {
+    opts.stats = true;
+    opts.period = 'week';
+    return true;
+  }
+  if (lower === 'month' || lower === '30d') {
+    opts.stats = true;
+    opts.period = 'month';
+    return true;
+  }
+  if (lower === 'all' || lower === 'list') {
+    if (opts.stats) opts.period = 'all';
+    else opts.all = true;
+    return true;
+  }
+  if (lower === 'cost') {
+    opts.sort = 'cost';
+    return false;
+  }
+  if (DATE_RANGE_TOKEN_RE.test(arg)) {
+    const rm = DATE_RANGE_TOKEN_RE.exec(arg);
+    opts.stats = true;
+    opts.period = 'custom';
+    opts.from = rm[1];
+    opts.to = rm[2];
+    return true;
+  }
+  if (DATE_TOKEN_RE.test(arg)) {
+    opts.stats = true;
+    opts.period = 'custom';
+    if (positionalDates.length < 2) positionalDates.push(arg);
+    return true;
+  }
+  return false;
+}
+
+export function resolvePositionalDates(opts, positionalDates) {
+  if (positionalDates.length === 1) {
+    const d = positionalDates[0];
+    if (!opts.from && !opts.to) {
+      opts.from = d;
+      if (DATE_ONLY_RE.test(d)) opts.to = d;
+    } else if (!opts.from) {
+      opts.from = d;
+    } else if (!opts.to) {
+      opts.to = d;
+    }
+  } else if (positionalDates.length >= 2 && !opts.from && !opts.to) {
+    opts.from = positionalDates[0];
+    opts.to = positionalDates[1];
+  }
+}
+
 function parsePanelArgs(argv) {
   const opts = {
     conv: '',
@@ -625,6 +714,7 @@ function parsePanelArgs(argv) {
     tui: false,
     help: false,
   };
+  const positionalDates = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--help' || a === '-h') opts.help = true;
@@ -640,16 +730,15 @@ function parsePanelArgs(argv) {
       opts.period = 'month';
     } else if (a === '--stats') {
       opts.stats = true;
-      if (argv[i + 1] && !argv[i + 1].startsWith('-')) opts.period = argv[++i];
+      if (argv[i + 1] && !argv[i + 1].startsWith('-')) {
+        applyStatsPeriodOrDate(opts, argv[++i], positionalDates);
+      }
     } else if (a.startsWith('--stats=')) {
-      opts.stats = true;
-      opts.period = a.slice('--stats='.length) || 'week';
+      applyStatsPeriodOrDate(opts, a.slice('--stats='.length) || 'week', positionalDates);
     } else if (a === '--period' && argv[i + 1]) {
-      opts.stats = true;
-      opts.period = argv[++i];
+      applyStatsPeriodOrDate(opts, argv[++i], positionalDates);
     } else if (a.startsWith('--period=')) {
-      opts.stats = true;
-      opts.period = a.slice('--period='.length) || 'week';
+      applyStatsPeriodOrDate(opts, a.slice('--period='.length) || 'week', positionalDates);
     } else if (a === '--from' && argv[i + 1]) {
       opts.from = argv[++i];
       opts.stats = true;
@@ -683,7 +772,11 @@ function parsePanelArgs(argv) {
     else if (a.startsWith('--window=')) opts.windowSize = Number(a.slice('--window='.length)) || 0;
     else if (a === '--sort' && argv[i + 1]) opts.sort = argv[++i];
     else if (a.startsWith('--sort=')) opts.sort = a.slice('--sort='.length);
+    else if (!a.startsWith('-')) {
+      applyPositionalStatsToken(opts, a, positionalDates);
+    }
   }
+  resolvePositionalDates(opts, positionalDates);
   return opts;
 }
 
@@ -691,14 +784,14 @@ function usage() {
   return [
     'Antigravity Context Usage CLI Panel',
     '',
-    'Usage: ctx [options]   (or: context-usage --panel [options])',
+    'Usage: ctx [options | day | week | month | YYYY-MM-DD [YYYY-MM-DD]]   (or: context-usage --panel [options])',
     '',
     'Options:',
     '  --conv <id>        Inspect a specific conversation ID',
     '  --file <path>      Inspect a specific transcript.jsonl file',
     '  --all              Show recent conversations across CLI/App/IDE',
-    '  --stats [period]   Show usage & cost stats (day|week|month|all|custom)',
-    '  --day, --week, --month  Shorthand stats window presets',
+    '  --stats [period]   Show usage & cost stats (day|week|month|all|YYYY-MM-DD|custom)',
+    '  --day, --week, --month  Shorthand stats window presets (or pass day/week/month/YYYY-MM-DD)',
     '  --from <date>      Custom stats start boundary (YYYY-MM-DD or ISO)',
     '  --to <date>        Custom stats end boundary (YYYY-MM-DD or ISO)',
     '  --surface <name>   Filter stats by surface (all|app|cli|ide)',

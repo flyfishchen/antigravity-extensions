@@ -40,6 +40,7 @@ function extractRawPromptText(content) {
   return content.replace(METADATA_BLOCK_RE, ' ').trim();
 }
 
+const DATE_ONLY_RE = /^20\d{2}[-/]\d{1,2}[-/]\d{1,2}$/;
 const DATE_TOKEN_RE = /^20\d{2}[-/]\d{1,2}[-/]\d{1,2}(?:[T\s]\d{1,2}:\d{2}(?::\d{2})?)?$/;
 const DATE_RANGE_TOKEN_RE =
   /^(20\d{2}[-/]\d{1,2}[-/]\d{1,2}(?:[T\s]\d{1,2}:\d{2}(?::\d{2})?)?)(?:\.\.|~)(20\d{2}[-/]\d{1,2}[-/]\d{1,2}(?:[T\s]\d{1,2}:\d{2}(?::\d{2})?)?)$/;
@@ -64,15 +65,32 @@ function parsePanelCommand(rawText) {
   };
   if (!rest) return parsed;
 
+  const positionalDates = [];
   const tokens = rest.split(/\s+/);
   for (let i = 0; i < tokens.length; i++) {
     const tok = tokens[i];
     const lower = tok.toLowerCase();
     if (lower === 'stats' || lower === '--stats') {
       parsed.stats = true;
-    } else if (/^--stats=(day|today|1d|week|7d|month|30d|all|custom)$/i.test(tok)) {
-      parsed.stats = true;
-      parsed.period = tok.slice('--stats='.length).toLowerCase();
+    } else if (/^--stats=.+$/i.test(tok)) {
+      const val = tok.slice('--stats='.length);
+      if (/^(day|today|1d|week|7d|month|30d|all|custom)$/i.test(val)) {
+        parsed.stats = true;
+        parsed.period = val.toLowerCase();
+      } else if (DATE_RANGE_TOKEN_RE.test(val)) {
+        const rm = DATE_RANGE_TOKEN_RE.exec(val);
+        parsed.stats = true;
+        parsed.period = 'custom';
+        parsed.from = rm[1];
+        parsed.to = rm[2];
+      } else if (DATE_TOKEN_RE.test(val)) {
+        if (positionalDates.length >= 2) return null;
+        parsed.stats = true;
+        parsed.period = 'custom';
+        positionalDates.push(val);
+      } else {
+        return null;
+      }
     } else if (lower === 'day' || lower === '--day' || lower === 'today' || lower === '--today' || lower === '1d') {
       parsed.stats = true;
       parsed.period = 'day';
@@ -106,11 +124,11 @@ function parsePanelCommand(rawText) {
       parsed.stats = true;
       parsed.period = 'custom';
       parsed.to = tok.slice('--to='.length);
-    } else if (parsed.stats && DATE_TOKEN_RE.test(tok)) {
+    } else if (DATE_TOKEN_RE.test(tok)) {
+      if (positionalDates.length >= 2) return null;
+      parsed.stats = true;
       parsed.period = 'custom';
-      if (!parsed.from) parsed.from = tok;
-      else if (!parsed.to) parsed.to = tok;
-      else return null;
+      positionalDates.push(tok);
     } else if (lower === '--surface' && tokens[i + 1] && /^(all|app|cli|ide)$/i.test(tokens[i + 1])) {
       parsed.surface = tokens[++i].toLowerCase();
     } else if (/^--surface=(all|app|cli|ide)$/i.test(tok)) {
@@ -136,6 +154,25 @@ function parsePanelCommand(rawText) {
       return null;
     }
   }
+
+  if (positionalDates.length === 1) {
+    const d = positionalDates[0];
+    if (!parsed.from && !parsed.to) {
+      parsed.from = d;
+      if (DATE_ONLY_RE.test(d)) parsed.to = d;
+    } else if (!parsed.from) {
+      parsed.from = d;
+    } else if (!parsed.to) {
+      parsed.to = d;
+    } else {
+      return null;
+    }
+  } else if (positionalDates.length === 2) {
+    if (parsed.from || parsed.to) return null;
+    parsed.from = positionalDates[0];
+    parsed.to = positionalDates[1];
+  }
+
   return parsed;
 }
 
@@ -147,8 +184,42 @@ function makeGaugeBar(pct, width = 14) {
   return `${'▰'.repeat(filled)}${'▱'.repeat(width - filled)}`;
 }
 
-function inspectTranscriptState(transcriptPath, fallbackInput, initialNumSteps) {
-  const fallbackText = extractRawPromptText(fallbackInput);
+function extractPayloadRawString(payload = {}) {
+  const candidates = [
+    payload?.lastUserInput,
+    payload?.last_user_input,
+    payload?.userInput,
+    payload?.user_input,
+    payload?.prompt,
+  ];
+  for (const val of candidates) {
+    if (typeof val === 'string' && val.trim()) {
+      return val;
+    }
+    if (val && typeof val === 'object' && typeof val.content === 'string' && val.content.trim()) {
+      return val.content;
+    }
+  }
+  return '';
+}
+
+function inspectTranscriptState(transcriptPath, payload = {}) {
+  const rawInvNum = payload?.invocationNum ?? payload?.invocation_num;
+  if (rawInvNum !== undefined && rawInvNum !== null && rawInvNum !== '') {
+    const parsedInvNum = Number(rawInvNum);
+    if (Number.isFinite(parsedInvNum) && parsedInvNum > 0) {
+      return { midTurn: true, promptText: '' };
+    }
+  }
+
+  const rawInput = extractPayloadRawString(payload);
+  const fallbackText = extractRawPromptText(rawInput);
+  const rawInitialSteps = payload?.initialNumSteps ?? payload?.initial_num_steps;
+  const parsedInitSteps =
+    rawInitialSteps !== undefined && rawInitialSteps !== null && rawInitialSteps !== ''
+      ? Number(rawInitialSteps)
+      : NaN;
+  const hasValidInitSteps = Number.isFinite(parsedInitSteps) && parsedInitSteps > 0;
 
   if (transcriptPath && existsSync(transcriptPath)) {
     try {
@@ -175,26 +246,62 @@ function inspectTranscriptState(transcriptPath, fallbackInput, initialNumSteps) 
 
       if (lastUserIdx >= 0) {
         const lastTranscriptPrompt = extractRawPromptText(steps[lastUserIdx].content);
+        const tailSteps = steps.slice(lastUserIdx + 1);
+        let lastPlannerOffset = -1;
+        for (let i = tailSteps.length - 1; i >= 0; i--) {
+          if (tailSteps[i].type === 'PLANNER_RESPONSE' || tailSteps[i].type === 'MODEL_RESPONSE') {
+            lastPlannerOffset = i;
+            break;
+          }
+        }
         // Mid-turn guard: if PLANNER_RESPONSE already ran after the latest USER_INPUT, check whether a new turn started before transcript flush.
-        const hasPlannerAfter = steps
-          .slice(lastUserIdx + 1)
-          .some((s) => s.type === 'PLANNER_RESPONSE');
-        if (hasPlannerAfter) {
-          if (typeof initialNumSteps === 'number' && initialNumSteps > 0 && steps.length <= initialNumSteps) {
-            return { midTurn: false, promptText: fallbackText || lastTranscriptPrompt };
+        if (lastPlannerOffset >= 0) {
+          const afterLastPlanner = tailSteps.slice(lastPlannerOffset + 1);
+          const hasPlanReviewAfter = afterLastPlanner.some(
+            (s) =>
+              s.type === 'SYSTEM_MESSAGE' &&
+              typeof s.content === 'string' &&
+              s.content.includes('[plan review]')
+          );
+          if (hasPlanReviewAfter && (!fallbackText || fallbackText === lastTranscriptPrompt)) {
+            return { midTurn: true, promptText: '' };
           }
           if (fallbackText && fallbackText !== lastTranscriptPrompt) {
             return { midTurn: false, promptText: fallbackText };
           }
+          const lastStep = steps[steps.length - 1];
+          const lastStepIdx =
+            typeof lastStep.step_index === 'number' ? lastStep.step_index : steps.length - 1;
+          const lastToolCalls = Array.isArray(lastStep.tool_calls) ? lastStep.tool_calls : [];
+          const onlyAskQuestion =
+            lastToolCalls.length > 0 && lastToolCalls.every((tc) => tc?.name === 'ask_question');
+          const completedAtTail =
+            (lastStep.type === 'PLANNER_RESPONSE' || lastStep.type === 'MODEL_RESPONSE') &&
+            (lastToolCalls.length === 0 || onlyAskQuestion);
+          if (completedAtTail && hasValidInitSteps && parsedInitSteps > lastStepIdx && fallbackText) {
+            return { midTurn: false, promptText: fallbackText };
+          }
           return { midTurn: true, promptText: '' };
         }
-        return {
-          midTurn: false,
-          promptText: lastTranscriptPrompt || fallbackText,
-        };
+        const hasPlanReview = tailSteps.some(
+          (s) =>
+            s.type === 'SYSTEM_MESSAGE' &&
+            typeof s.content === 'string' &&
+            s.content.includes('[plan review]')
+        );
+        if (hasPlanReview && (!fallbackText || fallbackText === lastTranscriptPrompt)) {
+          return { midTurn: true, promptText: '' };
+        }
+        if (fallbackText) {
+          return { midTurn: false, promptText: fallbackText };
+        }
+        if (tailSteps.length === 0) {
+          return { midTurn: false, promptText: lastTranscriptPrompt };
+        }
+        return { midTurn: true, promptText: '' };
       }
     } catch {
-      // Fall back to payload.lastUserInput below
+      // Fall back to payload user input below
     }
   }
 
@@ -418,7 +525,7 @@ function formatMarkdownStatsPanel(stats, { isCliSurface }) {
   lines.push('');
   if (isCliSurface) {
     lines.push(
-      '> 零 Token 统计面板：`:ctx day` · `:ctx week` · `:ctx month` · `:ctx stats 2026-11-01..2026-11-15` · `!ctx --stats week`'
+      '> 零 Token 统计面板：`:ctx day` · `:ctx week` · `:ctx 2026-11-16` · `:ctx 2026-11-01..2026-11-15` · `!ctx --day`'
     );
   } else {
     lines.push('[Context Usage](sidecar://context-usage/context_monitor/?tab=stats)');
@@ -430,17 +537,35 @@ function formatMarkdownStatsPanel(stats, { isCliSurface }) {
  * Evaluate a PreInvocation hook payload and return a zero-token inline panel if invoked cleanly.
  */
 export function evaluatePanelIntercept(payload = {}, opts = {}) {
-  const convId = typeof payload.conversationId === 'string' ? payload.conversationId : '';
-  const transcriptPath = typeof payload.transcriptPath === 'string' ? payload.transcriptPath : '';
-  const modelName = typeof payload.modelName === 'string' ? payload.modelName : '';
-  const surfaceHint = String(transcriptPath || payload.artifactDirectoryPath || '');
+  const convId =
+    typeof payload.conversationId === 'string'
+      ? payload.conversationId
+      : typeof payload.conversation_id === 'string'
+        ? payload.conversation_id
+        : '';
+  const transcriptPath =
+    typeof payload.transcriptPath === 'string'
+      ? payload.transcriptPath
+      : typeof payload.transcript_path === 'string'
+        ? payload.transcript_path
+        : '';
+  const modelName =
+    typeof payload.modelName === 'string'
+      ? payload.modelName
+      : typeof payload.model_name === 'string'
+        ? payload.model_name
+        : '';
+  const artifactDir =
+    typeof payload.artifactDirectoryPath === 'string'
+      ? payload.artifactDirectoryPath
+      : typeof payload.artifact_directory_path === 'string'
+        ? payload.artifact_directory_path
+        : '';
+  const rawLastUserInput = extractPayloadRawString(payload);
+  const surfaceHint = String(transcriptPath || artifactDir || '');
   const isCliSurface = surfaceHint.includes('antigravity-cli');
 
-  const { midTurn, promptText } = inspectTranscriptState(
-    transcriptPath,
-    payload.lastUserInput || '',
-    payload.initialNumSteps
-  );
+  const { midTurn, promptText } = inspectTranscriptState(transcriptPath, payload);
   if (midTurn) return {};
 
   const cmd = parsePanelCommand(promptText);
@@ -516,7 +641,7 @@ export function evaluatePanelIntercept(payload = {}, opts = {}) {
       }
 
       if (!data || (data.sessionTotals?.totalSteps ?? 0) === 0) {
-        const rawInput = typeof payload.lastUserInput === 'string' ? payload.lastUserInput : '';
+        const rawInput = rawLastUserInput;
         const syntheticJsonl = rawInput.trim()
           ? `${JSON.stringify({ step_index: 0, type: 'USER_INPUT', content: rawInput })}\n`
           : '';
